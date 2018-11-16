@@ -19,6 +19,7 @@
 #include "threads/thread.h"
 #include "threads/vaddr.h"
 #include "vm/frame.h"
+#include "vm/page.h"
 
 static thread_func start_process NO_RETURN;
 static bool load (const char *cmd_line, void (**eip) (void), void **esp);
@@ -188,6 +189,11 @@ process_exit (void)
       next = list_remove (e);
       release_child (cs);
     }
+
+  /* Destroy the supplemental page table,
+   * all the frames used by this process, and swaps. */ 
+  vm_supt_destory (cur->supt);
+  cur->supt = NULL;
   
   /* Destroy the current process's page directory and switch back
      to the kernel-only page directory. */
@@ -310,6 +316,8 @@ load (const char *cmd_line, void (**eip) (void), void **esp)
 
   /* Allocate and activate page directory. */
   t->pagedir = pagedir_create ();
+  t->supt = vm_supt_create ();
+
   if (t->pagedir == NULL) 
     goto done;
   process_activate ();
@@ -497,6 +505,14 @@ load_segment (struct file *file, off_t ofs, uint8_t *upage,
       size_t page_read_bytes = read_bytes < PGSIZE ? read_bytes : PGSIZE;
       size_t page_zero_bytes = PGSIZE - page_read_bytes;
 
+      // Lazy load virtual pages
+      struct thread* curr_thread = thread_current ();
+      ASSERT (pagedir_get_page (curr_thread->pagedir, upage) == NULL); // This virtual address should have not been installed
+
+      if (! vm_supt_install_filesys (curr_thread->supt, upage, file, ofs, page_read_bytes, page_zero_bytes, writable)) {
+        return false;
+      }
+
       /* Get a page of memory. */
       uint8_t *kpage = frame_get_page (PAL_USER);
       if (kpage == NULL)
@@ -521,6 +537,7 @@ load_segment (struct file *file, off_t ofs, uint8_t *upage,
       read_bytes -= page_read_bytes;
       zero_bytes -= page_zero_bytes;
       upage += PGSIZE;
+      ofs += PGSIZE;
     }
   return true;
 }
@@ -643,6 +660,9 @@ install_page (void *upage, void *kpage, bool writable)
 
   /* Verify that there's not already a page at that virtual
      address, then map our page there. */
-  return (pagedir_get_page (t->pagedir, upage) == NULL
-          && pagedir_set_page (t->pagedir, upage, kpage, writable));
+  bool success = (pagedir_get_page (t->pagedir, upage) == NULL && pagedir_set_page (t->pagedir, upage, kpage, writable));
+  success = success && vm_supt_install_frame (t->supt, upage, kpage);
+  if (success) vm_frame_unpin(kpage);
+
+  return success;
 }

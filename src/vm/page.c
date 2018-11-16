@@ -5,6 +5,7 @@
 #include "threads/synch.h"
 #include "threads/malloc.h"
 #include "threads/palloc.h"
+#include "threads/vaddr.h"
 #include "userprog/pagedir.h"
 #include "vm/frame.h"
 #include "vm/page.h"
@@ -14,6 +15,9 @@
 static unsigned spte_hash_func(const struct hash_elem* elem, void* aux);
 static bool     spte_less_func(const struct hash_elem* elem1, const struct hash_elem* elem2, void* aux);
 static void     spte_destroy_func(const struct hash_elem* elem, void *aux);
+
+// Helper functions
+static bool     vm_load_page_from_filesys(struct supplemental_page_table_entry *spte, void *kpage);
 
 
 /**
@@ -90,6 +94,33 @@ bool vm_supt_install_frame (struct supplemental_page_table *supt, void *page, vo
     }
 }
 
+/**
+ * Create supplemental page table entry a new page specified by the starting address "upage"
+ */
+bool vm_supt_install_filesys (struct supplemental_page_table *supt, void *page, struct file * file, int32_t offset, uint32_t read_bytes, uint32_t zero_bytes, bool writable)
+{
+    struct supplemental_page_table_entry *spte =
+        (struct supplemental_page_table_entry*) malloc(sizeof(struct supplemental_page_table_entry));
+
+    spte->virtual_addr = page;
+    spte->physical_addr = NULL;
+    spte->status = FROM_FILESYS;
+    spte->file = file;
+    spte->file_offset = offset;
+    spte->read_bytes = read_bytes;
+    spte->zero_bytes = zero_bytes;
+    spte->writable = writable;
+
+    struct hash_elem *prev_elem;
+    prev_elem = hash_insert (&supt->page_map, &spte->elem);
+    if (prev_elem == NULL) return true;
+
+    // Reaching here means there is already an entry for given upage.
+    PANIC("Duplicated supplemental page table entry found for filesys-page");
+    return false;
+}
+
+
 
 /**
  * Mark a page is swapped out to given swap index
@@ -146,9 +177,31 @@ bool vm_load_page(struct supplemental_page_table *supt, uint32_t *pagedir, void 
     }
 
     // Fetch data into frame
-    vm_swap_in (spte->swap_index, frame);
-
     bool writable = true;
+    switch (spte->status) {
+        case ON_FRAME:
+            // Data already on the frame, do nothing
+            break;
+
+        case ON_SWAP:
+            // Data is on swap, load the data back from swap
+            vm_swap_in (spte->swap_index, frame);
+            break;
+        
+        case FROM_FILESYS:
+            // Data was loaded from file, now we just need to 
+            // reload it from file.
+            if (vm_load_page_from_filesys (spte, frame) == false) {
+                vm_frame_free (frame);
+                return false;
+            }
+
+            writable = spte->writable;
+            break;
+
+        default:
+            PANIC ("Invalid page status");
+    }
 
     // Point the page table entry for the faulting virtual address to physical address
     if (!pagedir_set_page (pagedir, page, frame, writable)) {
@@ -168,3 +221,53 @@ bool vm_load_page(struct supplemental_page_table *supt, uint32_t *pagedir, void 
 
     return true;
 }
+
+
+/**
+ * Pin given page, prevent the frame associated with given page from swapping out.
+ */
+void vm_pin_page(struct supplemental_page_table *supt, void *page)
+{
+    struct supplemental_page_table_entry *spte = vm_supt_lookup (supt, page);
+    if (spte == NULL) {
+        // ignore. stack may be grown.
+        return;
+    }
+
+    ASSERT (spte->status == ON_FRAME);
+    vm_frame_pin (spte->physical_addr);
+}
+
+
+/**
+ * Unpin given page.
+ */
+void vm_unpin_page(struct supplemental_page_table *supt, void *page)
+{
+    struct supplemental_page_table_entry *spte = vm_supt_lookup (supt, page);
+    if (spte == NULL) PANIC ("Request page does not exist");
+
+    if (spte->status == ON_FRAME) {
+        vm_frame_unpin (spte->physical_addr);
+    }
+}
+
+
+/**
+ * Helper function : load page from file system
+ */
+static bool vm_load_page_from_filesys(struct supplemental_page_table_entry *spte, void *frame)
+{
+  file_seek (spte->file, spte->file_offset);
+
+  // read bytes from the file
+  int bytes_read = file_read (spte->file, frame, spte->read_bytes);
+  if(bytes_read != (int)spte->read_bytes)
+    return false;
+
+  // remain bytes are just zero
+  ASSERT (spte->read_bytes + spte->zero_bytes == PGSIZE);
+  memset ((char*)frame + bytes_read, 0, spte->zero_bytes);
+  return true;
+}
+

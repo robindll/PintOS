@@ -108,6 +108,8 @@ struct thread
     struct list fds;                    /* List of file descriptors. */
     int next_handle;                    /* Next handle value. */
 
+    struct supplemental_page_table *supt;   /* Supplemental Page Table. */
+
     /* Owned by thread.c. */
     unsigned magic;                     /* Detects stack overflow. */
   };

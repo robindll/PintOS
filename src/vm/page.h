@@ -7,8 +7,9 @@
  * Page status
  */
 enum page_status {
-    ON_FRAME,  // Page already in memory
-    ON_SWAP,   // Page swapped out to swap disk
+    ON_FRAME,       // Page already in memory
+    ON_SWAP,        // Page swapped out to swap disk
+    FROM_FILESYS,   // Loaded from file system or executable
 };
 
 /**
@@ -30,7 +31,16 @@ struct supplemental_page_table_entry
                                 // If the page is not on the frame, this pointer should be NULL
     struct hash_elem elem;      // Hash elements
     enum page_status status;    // Page status
+    
+    // Only valid for status = ON_SWAP
     uint32_t swap_index;        // Stores the swap index if the page is sapped out, only effictive when status = ON_SWAP
+    
+    // Only valid for status == FROM_FILESYS
+    struct file *file;
+    int32_t file_offset;
+    uint32_t read_bytes;
+    uint32_t zero_bytes;
+    bool writable;
 };
 
 /*
@@ -49,6 +59,9 @@ struct supplemental_page_table_entry* vm_supt_lookup (struct supplemental_page_t
 // Create supplemental page table entry for given page 
 bool vm_supt_install_frame (struct supplemental_page_table *supt, void *page, void *frame);
 
+// Create supplemental page table entry a new page specified by the starting address "upage"
+bool vm_supt_install_filesys (struct supplemental_page_table *supt, void *page, struct file * file, off_t offset, uint32_t read_bytes, uint32_t zero_bytes, bool writable);
+
 // Mark a page is swapped out to given swap index
 bool vm_supt_set_swap (struct supplemental_page_table *supt, void *page, uint32_t swap_index);
 
@@ -57,5 +70,11 @@ bool vm_supt_has_entry (struct supplemental_page_table *, void *page);
 
 // Load page back to frame from swap
 bool vm_load_page(struct supplemental_page_table *supt, uint32_t *pagedir, void *page);
+
+// Pin given page, prevent the frame associated with given page from swapping out.
+void vm_pin_page(struct supplemental_page_table *supt, void *page);
+
+// Unpin given page.
+void vm_unpin_page(struct supplemental_page_table *supt, void *page);
 
 #endif
