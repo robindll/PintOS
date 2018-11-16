@@ -6,6 +6,10 @@
 #include <stdint.h>
 #include "threads/synch.h"
 
+#ifdef VM
+#include "vm/page.h"
+#endif
+
 /* States in a thread's life cycle. */
 enum thread_status
   {
@@ -97,6 +101,7 @@ struct thread
 
     /* Shared between thread.c and synch.c. */
     struct list_elem elem;              /* List element. */
+    
 
 #ifdef USERPROG
     /* Owned by userprog/process.c. */
@@ -108,7 +113,9 @@ struct thread
     struct list fds;                    /* List of file descriptors. */
     int next_handle;                    /* Next handle value. */
 
+#ifdef VM
     struct supplemental_page_table *supt;   /* Supplemental Page Table. */
+#endif
 
     /* Owned by thread.c. */
     unsigned magic;                     /* Detects stack overflow. */

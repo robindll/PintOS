@@ -190,11 +190,13 @@ process_exit (void)
       release_child (cs);
     }
 
+#ifdef VM
   /* Destroy the supplemental page table,
    * all the frames used by this process, and swaps. */ 
   vm_supt_destory (cur->supt);
   cur->supt = NULL;
-  
+#endif
+
   /* Destroy the current process's page directory and switch back
      to the kernel-only page directory. */
   pd = cur->pagedir;
@@ -316,7 +318,10 @@ load (const char *cmd_line, void (**eip) (void), void **esp)
 
   /* Allocate and activate page directory. */
   t->pagedir = pagedir_create ();
+
+#ifdef VM
   t->supt = vm_supt_create ();
+#endif
 
   if (t->pagedir == NULL) 
     goto done;
@@ -505,6 +510,7 @@ load_segment (struct file *file, off_t ofs, uint8_t *upage,
       size_t page_read_bytes = read_bytes < PGSIZE ? read_bytes : PGSIZE;
       size_t page_zero_bytes = PGSIZE - page_read_bytes;
 
+#ifdef VM
       // Lazy load virtual pages
       struct thread* curr_thread = thread_current ();
       ASSERT (pagedir_get_page (curr_thread->pagedir, upage) == NULL); // This virtual address should have not been installed
@@ -512,6 +518,7 @@ load_segment (struct file *file, off_t ofs, uint8_t *upage,
       if (! vm_supt_install_filesys (curr_thread->supt, upage, file, ofs, page_read_bytes, page_zero_bytes, writable)) {
         return false;
       }
+#endif
 
       /* Get a page of memory. */
       uint8_t *kpage = frame_get_page (PAL_USER);
@@ -537,7 +544,9 @@ load_segment (struct file *file, off_t ofs, uint8_t *upage,
       read_bytes -= page_read_bytes;
       zero_bytes -= page_zero_bytes;
       upage += PGSIZE;
+#ifdef VM
       ofs += PGSIZE;
+#endif
     }
   return true;
 }
@@ -661,8 +670,11 @@ install_page (void *upage, void *kpage, bool writable)
   /* Verify that there's not already a page at that virtual
      address, then map our page there. */
   bool success = (pagedir_get_page (t->pagedir, upage) == NULL && pagedir_set_page (t->pagedir, upage, kpage, writable));
+
+#ifdef VM
   success = success && vm_supt_install_frame (t->supt, upage, kpage);
   if (success) vm_frame_unpin(kpage);
+#endif
 
   return success;
 }

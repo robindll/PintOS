@@ -1,6 +1,7 @@
 #include <hash.h>
 #include <string.h>
 
+#include "lib/debug.h"
 #include "lib/kernel/hash.h"
 #include "threads/synch.h"
 #include "threads/malloc.h"
@@ -254,9 +255,50 @@ void vm_unpin_page(struct supplemental_page_table *supt, void *page)
 
 
 /**
+ * Hash table helper functions, use virtual_addr as key.
+ */
+
+// Return element's hash key
+static unsigned spte_hash_func(const struct hash_elem* elem, void* aux UNUSED)
+{
+  struct supplemental_page_table_entry *entry = hash_entry(elem, struct supplemental_page_table_entry, elem);
+
+  return hash_int((int) entry->virtual_addr);
+}
+
+// Return whether elem a < b
+static bool spte_less_func(const struct hash_elem* a, const struct hash_elem* b, void *aux UNUSED)
+{
+  struct supplemental_page_table_entry *a_entry = hash_entry(a, struct supplemental_page_table_entry, elem);
+  struct supplemental_page_table_entry *b_entry = hash_entry(b, struct supplemental_page_table_entry, elem);
+  
+  return a_entry->virtual_addr < b_entry->virtual_addr;
+}
+
+// Destroy element
+static void spte_destroy_func(struct hash_elem* elem, void* aux UNUSED)
+{
+  struct supplemental_page_table_entry *entry = hash_entry(elem, struct supplemental_page_table_entry, elem);
+
+  // Clean up the associated frame
+  if (entry->physical_addr != NULL) {
+    ASSERT (entry->status == ON_FRAME);
+    vm_frame_remove_entry (entry->physical_addr);
+  }
+  else if(entry->status == ON_SWAP) {
+    vm_swap_free (entry->swap_index);
+  }
+
+  // Clean up SPTE entry.
+  free (entry);
+}
+
+
+
+/**
  * Helper function : load page from file system
  */
-static bool vm_load_page_from_filesys(struct supplemental_page_table_entry *spte, void *frame)
+static bool vm_load_page_from_filesys(struct supplemental_page_table_entry* spte, void* frame)
 {
   file_seek (spte->file, spte->file_offset);
 
