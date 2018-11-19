@@ -11,6 +11,8 @@
 #include "vm/frame.h"
 #include "vm/page.h"
 #include "vm/swap.h"
+#include "filesys/file.h"
+
 
 // Utility functions used by hash table
 static unsigned spte_hash_func(const struct hash_elem* elem, void* aux);

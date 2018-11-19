@@ -1,7 +1,10 @@
 #ifndef VM_PAGE_HEADER
 #define VM_PAGE_HEADER
 
+#include "vm/swap.h"
 #include <hash.h>
+#include "filesys/off_t.h"
+
 
 /**
  * Page status

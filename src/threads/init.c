@@ -37,6 +37,10 @@
 #include "filesys/filesys.h"
 #include "filesys/fsutil.h"
 #endif
+#ifdef VM
+#include "vm/frame.h"
+#include "vm/swap.h"
+#endif
 
 /* Page directory with kernel mappings only. */
 uint32_t *init_page_dir;
@@ -68,6 +72,10 @@ static void usage (void);
 #ifdef FILESYS
 static void locate_block_devices (void);
 static void locate_block_device (enum block_type, const char *name);
+#endif
+
+#ifdef VM
+  vm_swap_init ();
 #endif
 
 int main (void) NO_RETURN;
