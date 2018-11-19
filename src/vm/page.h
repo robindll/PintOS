@@ -31,6 +31,7 @@ struct supplemental_page_table_entry
                                 // If the page is not on the frame, this pointer should be NULL
     struct hash_elem elem;      // Hash elements
     enum page_status status;    // Page status
+    bool dirty;                 // Dirty bit
     
     // Only valid for status = ON_SWAP
     uint32_t swap_index;        // Stores the swap index if the page is sapped out, only effictive when status = ON_SWAP
@@ -66,7 +67,10 @@ bool vm_supt_install_filesys (struct supplemental_page_table *supt, void *page, 
 bool vm_supt_set_swap (struct supplemental_page_table *supt, void *page, uint32_t swap_index);
 
 // Return whether supplemental page table has entry for given page
-bool vm_supt_has_entry (struct supplemental_page_table *, void *page);
+bool vm_supt_has_entry (struct supplemental_page_table *supt, void *page);
+
+// Set a page's dirty bit
+bool vm_supt_set_dirty (struct supplemental_page_table *supt, void *page, bool);
 
 // Load page back to frame from swap
 bool vm_load_page(struct supplemental_page_table *supt, uint32_t *pagedir, void *page);

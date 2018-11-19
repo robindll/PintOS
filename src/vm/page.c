@@ -81,6 +81,7 @@ bool vm_supt_install_frame (struct supplemental_page_table *supt, void *page, vo
     spte->virtual_addr = page;
     spte->physical_addr = frame;
     spte->status = ON_FRAME;
+    spte->dirty = false;
     spte->swap_index = NO_SAWP_INDEX;
 
     // Insert new supplemental page table entry into page table
@@ -106,6 +107,7 @@ bool vm_supt_install_filesys (struct supplemental_page_table *supt, void *page, 
     spte->virtual_addr = page;
     spte->physical_addr = NULL;
     spte->status = FROM_FILESYS;
+    spte->dirty = false;
     spte->file = file;
     spte->file_offset = offset;
     spte->read_bytes = read_bytes;
@@ -120,7 +122,6 @@ bool vm_supt_install_filesys (struct supplemental_page_table *supt, void *page, 
     PANIC("Duplicated supplemental page table entry found for filesys-page");
     return false;
 }
-
 
 
 /**
@@ -150,6 +151,18 @@ bool vm_supt_has_entry (struct supplemental_page_table *supt, void *page)
 {
     return vm_supt_lookup (supt, page) != NULL;
 }
+
+
+/** Set dirty status for a given page. */
+bool vm_supt_set_dirty (struct supplemental_page_table *supt, void *page, bool value)
+{
+    struct supplemental_page_table_entry *spte = vm_supt_lookup(supt, page);
+    if (spte == NULL) PANIC("Set dirty - the request page doesn't exist in supplemental page table.");
+
+    spte->dirty = value;
+    return true;
+}
+
 
 /**
  * Load page back to frame from swap

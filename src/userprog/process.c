@@ -5,6 +5,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+
 #include "userprog/gdt.h"
 #include "userprog/pagedir.h"
 #include "userprog/tss.h"
@@ -23,6 +24,13 @@
 
 static thread_func start_process NO_RETURN;
 static bool load (const char *cmd_line, void (**eip) (void), void **esp);
+
+#ifndef VM
+// alternative of vm-related functions in "vm/frame.h"
+#define vm_frame_allocate(x, y) palloc_get_page(x)
+#define vm_frame_free(x) palloc_free_page(x)
+#endif
+
 
 /* Data structure shared between process_execute() in the
    invoking thread and start_process() in the newly invoked
@@ -521,14 +529,14 @@ load_segment (struct file *file, off_t ofs, uint8_t *upage,
 #endif
 
       /* Get a page of memory. */
-      uint8_t *kpage = frame_get_page (PAL_USER);
+      uint8_t *kpage = vm_frame_allocate (PAL_USER, upage);
       if (kpage == NULL)
         return false;
 
       /* Load this page. */
       if (file_read (file, kpage, page_read_bytes) != (int) page_read_bytes)
         {
-          frame_free_page (kpage);
+          vm_frame_free (kpage);
           return false; 
         }
       memset (kpage + page_read_bytes, 0, page_zero_bytes);
@@ -536,7 +544,7 @@ load_segment (struct file *file, off_t ofs, uint8_t *upage,
       /* Add the page to the process's address space. */
       if (!install_page (upage, kpage, writable)) 
         {
-          frame_free_page (kpage);
+          vm_frame_free (kpage);
           return false; 
         }
 
@@ -641,7 +649,7 @@ setup_stack (const char *cmd_line, void **esp)
   uint8_t *kpage;
   bool success = false;
 
-  kpage = frame_get_page (PAL_USER | PAL_ZERO);
+  kpage = vm_frame_allocate (PAL_USER | PAL_ZERO, PHYS_BASE - PGSIZE);
   if (kpage != NULL) 
     {
       uint8_t *upage = ((uint8_t *) PHYS_BASE) - PGSIZE;
