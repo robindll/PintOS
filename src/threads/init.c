@@ -75,7 +75,7 @@ static void locate_block_device (enum block_type, const char *name);
 #endif
 
 #ifdef VM
-  vm_swap_init ();
+void vm_swap_init ();
 #endif
 
 int main (void) NO_RETURN;
