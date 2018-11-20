@@ -1,15 +1,26 @@
-#include "userprog/exception.h"
 #include <inttypes.h>
 #include <stdio.h>
-#include "userprog/gdt.h"
+
 #include "threads/interrupt.h"
 #include "threads/thread.h"
+#include "threads/vaddr.h"
+#include "userprog/exception.h"
+#include "userprog/gdt.h"
+#include "userprog/pagedir.h"
+#include "userprog/syscall.h"
+
+#ifdef VM
+#include "vm/page.h"
+#include "vm/frame.h"
+#endif
 
 /* Number of page faults processed. */
 static long long page_fault_cnt;
 
 static void kill (struct intr_frame *);
 static void page_fault (struct intr_frame *);
+
+#define MAX_STACK_SIZE 0x1600000 // max stack size 16MB
 
 /* Registers handlers for interrupts that can be caused by user
    programs.
@@ -148,6 +159,50 @@ page_fault (struct intr_frame *f)
   write = (f->error_code & PF_W) != 0;
   user = (f->error_code & PF_U) != 0;
 
+#ifdef VM
+   /*
+    * Virtula memory handling.
+    */
+
+   // Find the faulted page
+   struct thread* curr_thread = thread_current();
+   void* fault_page = (void*) pg_round_down(fault_addr);
+
+   if (!not_present) {
+      // Attemping write to a read-only region.
+      goto PAGE_FAULT_VIOLATED_ACCESS;
+   }
+
+   /**
+    * Get user program's stack pointer.
+    * If page fault is from user mode : get it from ((intr_frame) f)->esp
+    * If page fault is from kernel mode : get if from curr_thread->esp
+    */
+   void* esp = user ? f->esp : curr_thread->current_esp;
+
+   // Stack Growth
+   bool on_stack_frame = false;
+   bool is_stack_addr = false;
+   on_stack_frame = (esp <= fault_addr || fault_addr == f->esp - 4 || fault_addr == f->esp - 32);
+   is_stack_addr = (PHYS_BASE - MAX_STACK_SIZE <= fault_addr && fault_addr < PHYS_BASE);
+   if (on_stack_frame && is_stack_addr) {
+      // Faulted page is in user virtual address and does not exceed stack limit
+      // Add new entry to supplemental page table if it does not exist.
+      if (vm_supt_has_entry (curr_thread->supt, fault_page) == false) {
+         vm_supt_install_zeropage (curr_thread->supt, fault_page);
+      }
+   }
+
+   if (!vm_load_page (curr_thread->supt, curr_thread->pagedir, fault_page)) {
+      goto PAGE_FAULT_VIOLATED_ACCESS;
+   }
+
+   // Page loaded successfully
+   return;
+
+PAGE_FAULT_VIOLATED_ACCESS:
+#endif
+
   /* Handle bad dereferences from system call implementations. */
   if (!user) 
     {
@@ -155,19 +210,6 @@ page_fault (struct intr_frame *f)
       f->eax = 0;
       return;
     }
-
-   void* frame = frame_swap(sup[frame_addr]);
-   // 1. find a frame to swap out, swap content in this page to swap file somewhere, 
-   // and store this info into the pages's sup entry. Update sup entry status (status: in memory->on swap file)
-   // 2. Associate sup entry passed in to this vacant frame
-   // 3. Read data back to vacant frame, update sup status (status : on swap file -> in memory)
-   // 4. update PTE frame
-   // return phy_address of frame
-
-   struct SupPTE {
-      uint32_t swap_file_page;
-      uint32_t pte_addrs;
-   };
 
   /* To implement virtual memory, delete the rest of the function
      body, and replace it with code that brings in the page to

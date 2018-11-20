@@ -77,6 +77,10 @@ syscall_handler (struct intr_frame *f)
   unsigned call_nr;
   int args[3];
 
+  // Store the esp, which is needed in the page fault handler.
+  // refer to exception.c:page_fault() (see manual 4.3.3)
+  thread_current()->current_esp = f->esp;
+
   /* Get the system call. */
   copy_in (&call_nr, f->esp, sizeof call_nr);
   if (call_nr >= sizeof syscall_table / sizeof *syscall_table)

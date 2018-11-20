@@ -57,7 +57,7 @@ struct supplemental_page_table_entry* vm_supt_lookup (struct supplemental_page_t
 {
     // Create temp spte for looking up the hash table
     struct supplemental_page_table_entry spte_temp;
-    spte_temp.virtual_addr = page;
+    spte_temp.upage = page;
 
     struct hash_elem *elem = hash_find (&supt->page_map, &spte_temp.elem);
     
@@ -80,8 +80,8 @@ bool vm_supt_install_frame (struct supplemental_page_table *supt, void *page, vo
     struct supplemental_page_table_entry *spte =
         (struct supplemental_page_table_entry*) malloc(sizeof(struct supplemental_page_table_entry));
     
-    spte->virtual_addr = page;
-    spte->physical_addr = frame;
+    spte->upage = page;
+    spte->kpage = frame;
     spte->status = ON_FRAME;
     spte->dirty = false;
     spte->swap_index = NO_SAWP_INDEX;
@@ -106,8 +106,8 @@ bool vm_supt_install_filesys (struct supplemental_page_table *supt, void *page, 
     struct supplemental_page_table_entry *spte =
         (struct supplemental_page_table_entry*) malloc(sizeof(struct supplemental_page_table_entry));
 
-    spte->virtual_addr = page;
-    spte->physical_addr = NULL;
+    spte->upage = page;
+    spte->kpage = NULL;
     spte->status = FROM_FILESYS;
     spte->dirty = false;
     spte->file = file;
@@ -127,6 +127,29 @@ bool vm_supt_install_filesys (struct supplemental_page_table *supt, void *page, 
 
 
 /**
+ * Create supplemental page table entry for a new zero-ed page.
+ */
+bool vm_supt_install_zeropage (struct supplemental_page_table *supt, void *page)
+{
+    struct supplemental_page_table_entry* spte = (struct supplemental_page_table_entry*) malloc(sizeof(struct supplemental_page_table_entry));
+    ASSERT (spte != NULL);
+
+    spte->upage = page;
+    spte->kpage = NULL;
+    spte->status = ALL_ZERO;
+    spte->dirty = false;
+
+    struct hash_elem* prev_elem;
+    prev_elem = hash_insert (&supt->page_map, &spte->elem);
+    if (prev_elem == NULL) return true;
+
+    // There is already an entry
+    PANIC ("Duplicated supplemental entry found for zero page");
+    return false;
+}
+
+
+/**
  * Mark a page is swapped out to given swap index
  */
 bool vm_supt_set_swap (struct supplemental_page_table *supt, void *page, uint32_t swap_index)
@@ -139,7 +162,7 @@ bool vm_supt_set_swap (struct supplemental_page_table *supt, void *page, uint32_
     }
 
     spte->status = ON_SWAP;
-    spte->physical_addr = NULL;
+    spte->kpage = NULL;
     spte->swap_index = swap_index;
 
     return true;
@@ -195,6 +218,10 @@ bool vm_load_page(struct supplemental_page_table *supt, uint32_t *pagedir, void 
     // Fetch data into frame
     bool writable = true;
     switch (spte->status) {
+        case ALL_ZERO:
+            memset (frame, 0, PGSIZE);
+            break;
+
         case ON_FRAME:
             // Data already on the frame, do nothing
             break;
@@ -227,7 +254,7 @@ bool vm_load_page(struct supplemental_page_table *supt, uint32_t *pagedir, void 
     }
 
     // Save physical address to supplemental page table and update its status
-    spte->physical_addr = frame;
+    spte->kpage = frame;
     spte->status = ON_FRAME;
 
     pagedir_set_dirty (pagedir, frame, false);
@@ -251,7 +278,7 @@ void vm_pin_page(struct supplemental_page_table *supt, void *page)
     }
 
     ASSERT (spte->status == ON_FRAME);
-    vm_frame_pin (spte->physical_addr);
+    vm_frame_pin (spte->kpage);
 }
 
 
@@ -264,13 +291,13 @@ void vm_unpin_page(struct supplemental_page_table *supt, void *page)
     if (spte == NULL) PANIC ("Request page does not exist");
 
     if (spte->status == ON_FRAME) {
-        vm_frame_unpin (spte->physical_addr);
+        vm_frame_unpin (spte->kpage);
     }
 }
 
 
 /**
- * Hash table helper functions, use virtual_addr as key.
+ * Hash table helper functions, use upage as key.
  */
 
 // Return element's hash key
@@ -278,7 +305,7 @@ static unsigned spte_hash_func(const struct hash_elem* elem, void* aux UNUSED)
 {
   struct supplemental_page_table_entry *entry = hash_entry(elem, struct supplemental_page_table_entry, elem);
 
-  return hash_int((int) entry->virtual_addr);
+  return hash_int((int) entry->upage);
 }
 
 // Return whether elem a < b
@@ -287,7 +314,7 @@ static bool spte_less_func(const struct hash_elem* a, const struct hash_elem* b,
   struct supplemental_page_table_entry *a_entry = hash_entry(a, struct supplemental_page_table_entry, elem);
   struct supplemental_page_table_entry *b_entry = hash_entry(b, struct supplemental_page_table_entry, elem);
   
-  return a_entry->virtual_addr < b_entry->virtual_addr;
+  return a_entry->upage < b_entry->upage;
 }
 
 // Destroy element
@@ -296,9 +323,9 @@ static void spte_destroy_func(struct hash_elem* elem, void* aux UNUSED)
   struct supplemental_page_table_entry *entry = hash_entry(elem, struct supplemental_page_table_entry, elem);
 
   // Clean up the associated frame
-  if (entry->physical_addr != NULL) {
+  if (entry->kpage != NULL) {
     ASSERT (entry->status == ON_FRAME);
-    vm_frame_remove_entry (entry->physical_addr);
+    vm_frame_remove_entry (entry->kpage);
   }
   else if(entry->status == ON_SWAP) {
     vm_swap_free (entry->swap_index);

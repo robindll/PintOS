@@ -10,6 +10,7 @@
  * Page status
  */
 enum page_status {
+    ALL_ZERO,       // All zeros
     ON_FRAME,       // Page already in memory
     ON_SWAP,        // Page swapped out to swap disk
     FROM_FILESYS,   // Loaded from file system or executable
@@ -29,8 +30,8 @@ struct supplemental_page_table
  */
 struct supplemental_page_table_entry
 {
-    void* virtual_addr;         // Virtual address of page
-    void* physical_addr;        // Physical address of frame associated to the virtual address
+    void* upage;                // User space page virtual address
+    void* kpage;                // Kernel space page virtual address
                                 // If the page is not on the frame, this pointer should be NULL
     struct hash_elem elem;      // Hash elements
     enum page_status status;    // Page status
@@ -63,8 +64,11 @@ struct supplemental_page_table_entry* vm_supt_lookup (struct supplemental_page_t
 // Create supplemental page table entry for given page 
 bool vm_supt_install_frame (struct supplemental_page_table *supt, void *page, void *frame);
 
-// Create supplemental page table entry a new page specified by the starting address "upage"
+// Create supplemental page table entry for a new page specified by the starting address "page"
 bool vm_supt_install_filesys (struct supplemental_page_table *supt, void *page, struct file * file, off_t offset, uint32_t read_bytes, uint32_t zero_bytes, bool writable);
+
+// Create supplemental page table entry for a new zero-ed page.
+bool vm_supt_install_zeropage (struct supplemental_page_table *supt, void *page);
 
 // Mark a page is swapped out to given swap index
 bool vm_supt_set_swap (struct supplemental_page_table *supt, void *page, uint32_t swap_index);
