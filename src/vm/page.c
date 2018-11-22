@@ -17,7 +17,7 @@
 // Utility functions used by hash table
 static unsigned spte_hash_func(const struct hash_elem* elem, void* aux);
 static bool     spte_less_func(const struct hash_elem* elem1, const struct hash_elem* elem2, void* aux);
-static void     spte_destroy_func(const struct hash_elem* elem, void *aux);
+static void     spte_destroy_func(struct hash_elem* elem, void *aux);
 
 // Helper functions
 static bool     vm_load_page_from_filesys(struct supplemental_page_table_entry *spte, void *kpage);
