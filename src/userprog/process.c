@@ -201,7 +201,7 @@ process_exit (void)
 #ifdef VM
   /* Destroy the supplemental page table,
    * all the frames used by this process, and swaps. */ 
-  vm_supt_destory (cur->supt);
+  vm_supt_destroy (cur->supt);
   cur->supt = NULL;
 #endif
 
@@ -656,7 +656,7 @@ setup_stack (const char *cmd_line, void **esp)
       if (install_page (upage, kpage, true))
         success = init_cmd_line (kpage, upage, cmd_line, esp);
       else
-        frame_free_page (kpage);
+        vm_frame_free (kpage);
     }
   return success;
 }
