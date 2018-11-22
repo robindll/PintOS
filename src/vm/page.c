@@ -34,6 +34,8 @@ struct supplemental_page_table* vm_supt_create (void)
 
     // Initialize page map in supplemental page table
     hash_init (&supt->page_map, spte_hash_func, spte_less_func, NULL);
+
+    return supt;
 }
 
 
