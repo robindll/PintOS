@@ -106,6 +106,10 @@ main (void)
   palloc_init (user_page_limit);
   malloc_init ();
   paging_init ();
+#ifdef VM
+  /* Initialize frame table */
+  vm_frame_init();
+#endif
 
   /* Segmentation. */
 #ifdef USERPROG
@@ -133,6 +137,10 @@ main (void)
   ide_init ();
   locate_block_devices ();
   filesys_init (format_filesys);
+#endif
+#ifdef VM
+  /* Initialize swap table */
+  vm_swap_init ();
 #endif
 
   printf ("Boot complete.\n");
