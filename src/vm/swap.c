@@ -48,7 +48,8 @@ uint32_t vm_swap_out (void* page)
     size_t swap_index = bitmap_scan (swap_available, /*start*/0, /*cnt*/1, true);
 
     // Write all content to swap slot
-    for (size_t i = 0; i < SECTORS_PER_PAGE; ++i) {
+    size_t i = 0;
+    for (; i < SECTORS_PER_PAGE; ++i) {
         block_write(swap_block,
             /* sector number */  swap_index * SECTORS_PER_PAGE + i,
             /* target address */ (char*)page + (BLOCK_SECTOR_SIZE * i));
@@ -77,7 +78,8 @@ void vm_swap_in (uint32_t swap_index, void* page)
     }
 
     // Read a page content back from swap slot
-    for (size_t i = 0; i < SECTORS_PER_PAGE; ++i) {
+    size_t i = 0;
+    for (; i < SECTORS_PER_PAGE; ++i) {
         block_read (swap_block,
             /* sector number */  swap_index * SECTORS_PER_PAGE + i,
             /* target address */ (char*)page + (BLOCK_SECTOR_SIZE * i)
