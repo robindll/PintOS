@@ -40,8 +40,18 @@ pagedir_destroy (uint32_t *pd)
         uint32_t *pte;
         
         for (pte = pt; pte < pt + PGSIZE / sizeof *pte; pte++)
-          if (*pte & PTE_P) 
+          // Free kernal frame page if it's present
+          if (*pte & PTE_P) {
+#ifdef MY_DEBUG
+            printf("[DEBUG][pagedir_destroy] Deallocating PTE 0x%x\n", (unsigned int)pte_get_page (*pte));
+#endif
             palloc_free_page (pte_get_page (*pte));
+          }
+
+#ifdef MY_DEBUG
+            printf("[DEBUG][pagedir_destroy] Deallocating PT. 0x%x\n", (unsigned int)pt);
+#endif
+        // Free page table
         palloc_free_page (pt);
 
         // [TODO]

@@ -185,9 +185,13 @@ void vm_frame_do_free (void *kpage, bool deallocate_frame)
     list_remove (&frame->lelem);
 
     // Free memory used by the kernal frame if needed.
-    if (deallocate_frame)
+    if (deallocate_frame) {
+#ifdef MY_DEBUG
+        printf("[DEBUG][vm_frame_do_free] Deallocating kpage 0x%x\n", (unsigned int)kpage);
+#endif
         palloc_free_page(kpage);
-    
+    }
+
     // Free memory used by frame table entry.
     free(frame);
 }
