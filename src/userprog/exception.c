@@ -166,13 +166,12 @@ page_fault (struct intr_frame *f)
           write ? "writing" : "reading",
           user ? "user" : "kernel");
 #endif
-   /*
-    * Virtula memory handling.
-    */
 
-   // Find the faulted page
-   struct thread* curr_thread = thread_current();
-   void* fault_page = (void*) pg_round_down(fault_addr);
+#if VM
+  /* Virtual memory handling.
+   * First, bring in the page to which fault_addr refers. */
+  struct thread *curr = thread_current(); /* Current thread. */
+  void* fault_page = (void*) pg_round_down(fault_addr);
 
    if (!not_present) {
       // Attemping write to a read-only region.
