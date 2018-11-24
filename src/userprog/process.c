@@ -539,7 +539,7 @@ load_segment (struct file *file, off_t ofs, uint8_t *upage,
 #ifdef MY_DEBUG
           printf("[DEBUG][load_segment] failed to read kpage 0x%x, page_read_bytes=%u\n", (unsigned int) kpage, page_read_bytes);
 #endif
-          vm_frame_free (kpage);
+          // vm_frame_free (kpage);
           return false; 
         }
       memset (kpage + page_read_bytes, 0, page_zero_bytes);
@@ -550,7 +550,7 @@ load_segment (struct file *file, off_t ofs, uint8_t *upage,
 #ifdef MY_DEBUG
           printf("[DEBUG][load_segment] failed to install kpage 0x%x, writable=%u\n", (unsigned int) kpage, writable);
 #endif
-          vm_frame_free (kpage);
+          // vm_frame_free (kpage);
           return false; 
         }
 
