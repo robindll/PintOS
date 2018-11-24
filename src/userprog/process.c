@@ -687,10 +687,25 @@ install_page (void *upage, void *kpage, bool writable)
 
   /* Verify that there's not already a page at that virtual
      address, then map our page there. */
-  bool success = (pagedir_get_page (t->pagedir, upage) == NULL && pagedir_set_page (t->pagedir, upage, kpage, writable));
+  bool success = pagedir_get_page (t->pagedir, upage) == NULL;
+
+#ifdef MY_DEBUG
+  printf("[DEBUG][install_page] Verify upage %p does not exist : %d", upage, success);
+#endif
+
+  success = success && pagedir_set_page (t->pagedir, upage, kpage, writable);
+
+#ifdef MY_DEBUG
+  printf("[DEBUG][install_page] Associate upage %p with kpage %p, writable=%d : %d", upage, kpage, writable, success);
+#endif
 
 #ifdef VM
   success = success && vm_supt_install_frame (t->supt, upage, kpage);
+
+#ifdef MY_DEBUG
+  printf("[DEBUG][install_page] Associate upage %p with kpage %p in supt page table : %d", upage, kpage, success);
+#endif
+
   if (success) vm_frame_unpin(kpage);
 #endif
 
