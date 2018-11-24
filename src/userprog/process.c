@@ -665,7 +665,7 @@ setup_stack (const char *cmd_line, void **esp)
 #ifdef MY_DEBUG
         printf("[DEBUG][setup_stack] failed to install kpage 0x%x, writable=%u\n", (unsigned int) kpage, true);
 #endif
-        vm_frame_free (kpage);
+        // vm_frame_free (kpage);
       }
     }
   return success;
