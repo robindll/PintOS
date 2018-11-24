@@ -10,6 +10,7 @@
                 "UNICODE",
                 "_UNICODE",
                 "USERPROG",
+                "FILESYS",
                 "VM",
                 "MY_DEBUG"
             ],
