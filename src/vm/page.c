@@ -88,13 +88,25 @@ bool vm_supt_install_frame (struct supplemental_page_table *supt, void *page, vo
     spte->dirty = false;
     spte->swap_index = NO_SAWP_INDEX;
 
+#ifdef MY_DEBUG
+  printf("[DEBUG][vm_supt_install_frame] Adding SPTE for upage=%p kpage=%p status=%d dirty=%d swap_index=%d\n", spte->upage, spte->kpage, spte->status, spte->dirty, spte->swap_index);
+#endif
+
     // Insert new supplemental page table entry into page table
     struct hash_elem *prev_elem = hash_insert (&supt->page_map, &spte->elem);
     if (prev_elem == NULL) {
         // successfully inserted into supplemental page table
+#ifdef MY_DEBUG
+        printf("[DEBUG][vm_supt_install_frame] Successfully added SPTE for upage=%p kpage=%p status=%d dirty=%d swap_index=%d\n", spte->upage, spte->kpage, spte->status, spte->dirty, spte->swap_index);
+#endif
         return true;
     } else {
         // Insertion failed, there is already an entry.
+#ifdef MY_DEBUG
+        struct supplemental_page_table_entry *dup = vm_supt_lookup(&supt, spte->upage);
+        printf("[DEBUG][vm_supt_install_frame] Found dup SPTE : upage=%p kpage=%p status=%d dirty=%d swap_index=%d\n", dup->upage, dup->kpage, dup->status, dup->dirty, dup->swap_index);
+#endif
+
         free (spte);
         return false;
     }
@@ -118,9 +130,23 @@ bool vm_supt_install_filesys (struct supplemental_page_table *supt, void *page, 
     spte->zero_bytes = zero_bytes;
     spte->writable = writable;
 
+#ifdef MY_DEBUG
+    printf("[DEBUG][vm_supt_install_filesys] Installing page : upage=%p kpage=%p status=%d dirty=%d swap_index=%d\n", spte->upage, spte->kpage, spte->status, spte->dirty, spte->swap_index);
+#endif
     struct hash_elem *prev_elem;
     prev_elem = hash_insert (&supt->page_map, &spte->elem);
-    if (prev_elem == NULL) return true;
+    if (prev_elem == NULL) {
+
+#ifdef MY_DEBUG
+        printf("[DEBUG][vm_supt_install_filesys] Successfully installed page : upage=%p kpage=%p status=%d dirty=%d swap_index=%d\n", spte->upage, spte->kpage, spte->status, spte->dirty, spte->swap_index);
+#endif
+        return true;
+    } else {
+#ifdef MY_DEBUG
+        struct supplemental_page_table_entry *dup = vm_supt_lookup(&supt, spte->upage);
+        printf("[DEBUG][vm_supt_install_filesys] Duplicated SPTE found : upage=%p kpage=%p status=%d dirty=%d swap_index=%d\n", dup->upage, dup->kpage, dup->status, dup->dirty, dup->swap_index);
+#endif
+    }
 
     // Reaching here means there is already an entry for given upage.
     PANIC("Duplicated supplemental page table entry found for filesys-page");
@@ -141,9 +167,22 @@ bool vm_supt_install_zeropage (struct supplemental_page_table *supt, void *page)
     spte->status = ALL_ZERO;
     spte->dirty = false;
 
+#ifdef MY_DEBUG
+    printf("[DEBUG][vm_supt_install_zeropage] Installing page : upage=%p kpage=%p status=%d dirty=%d swap_index=%d\n", spte->upage, spte->kpage, spte->status, spte->dirty, spte->swap_index);
+#endif
     struct hash_elem* prev_elem;
     prev_elem = hash_insert (&supt->page_map, &spte->elem);
-    if (prev_elem == NULL) return true;
+    if (prev_elem == NULL) {
+#ifdef MY_DEBUG
+        printf("[DEBUG][vm_supt_install_zeropage] Successfully installed page : upage=%p kpage=%p status=%d dirty=%d swap_index=%d\n", spte->upage, spte->kpage, spte->status, spte->dirty, spte->swap_index);
+#endif
+        return true;
+    } else {
+#ifdef MY_DEBUG
+        struct supplemental_page_table_entry *dup = vm_supt_lookup(&supt, spte->upage);
+        printf("[DEBUG][vm_supt_install_zeropage] Duplicated SPTE found : upage=%p kpage=%p status=%d dirty=%d swap_index=%d\n", dup->upage, dup->kpage, dup->status, dup->dirty, dup->swap_index);
+#endif
+    }
 
     // There is already an entry
     PANIC ("Duplicated supplemental entry found for zero page");
