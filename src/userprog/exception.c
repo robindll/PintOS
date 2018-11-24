@@ -170,7 +170,7 @@ page_fault (struct intr_frame *f)
 #if VM
   /* Virtual memory handling.
    * First, bring in the page to which fault_addr refers. */
-  struct thread *curr = thread_current(); /* Current thread. */
+  struct thread *curr_thread = thread_current(); /* Current thread. */
   void* fault_page = (void*) pg_round_down(fault_addr);
 
    if (!not_present) {
