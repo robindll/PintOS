@@ -57,17 +57,31 @@ void vm_supt_destroy (struct supplemental_page_table *supt)
  */
 struct supplemental_page_table_entry* vm_supt_lookup (struct supplemental_page_table *supt, void *page)
 {
+#ifdef MY_DEBUG
+    printf("[DEBUG][vm_supt_lookup] Looking for page %p in SPTE\n", page);
+#endif
+
     // Create temp spte for looking up the hash table
     struct supplemental_page_table_entry spte_temp;
     spte_temp.upage = page;
+
+#ifdef MY_DEBUG
+    printf("[DEBUG][vm_supt_lookup] Temp SPTE for search created\n");
+#endif
 
     struct hash_elem *elem = hash_find (&supt->page_map, &spte_temp.elem);
     
     if (elem == NULL) {
         // Didn't find the entry
+#ifdef MY_DEBUG
+        printf("[DEBUG][vm_supt_lookup] Didn't find SPTE for %p\n", page);
+#endif
         return NULL;
     }
 
+#ifdef MY_DEBUG
+        printf("[DEBUG][vm_supt_lookup] Found SPTE for %p\n", page);
+#endif
     return hash_entry(elem, struct supplemental_page_table_entry, elem);
 }
 
