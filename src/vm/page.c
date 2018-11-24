@@ -263,7 +263,7 @@ bool vm_load_page(struct supplemental_page_table *supt, uint32_t *pagedir, void 
         return true;
     }
 
-    void* frame = vm_frame_allocate (PAL_USER, page);
+    void* frame = frame_allocate (PAL_USER, page);
 
     if (frame == NULL) {
         // Failed to allocate new frame
@@ -293,7 +293,7 @@ bool vm_load_page(struct supplemental_page_table *supt, uint32_t *pagedir, void 
 #ifdef MY_DEBUG
                 printf("[DEBUG][vm_load_page] failed to load page 0x%x from filesys\n", (unsigned int) frame);
 #endif
-                vm_frame_free (frame);
+                frame_free (frame);
                 return false;
             }
 
@@ -310,7 +310,7 @@ bool vm_load_page(struct supplemental_page_table *supt, uint32_t *pagedir, void 
 #ifdef MY_DEBUG
         printf("[DEBUG][vm_load_page] failed to set page 0x%x in page dir, writable=%d\n", (unsigned int) frame, writable);
 #endif
-        vm_frame_free (frame);
+        frame_free (frame);
         return false;
     }
 
@@ -321,7 +321,7 @@ bool vm_load_page(struct supplemental_page_table *supt, uint32_t *pagedir, void 
     pagedir_set_dirty (pagedir, frame, false);
 
     // Unpin frame
-    vm_frame_unpin (frame);
+    frame_unpin (frame);
 
     return true;
 }
@@ -339,7 +339,7 @@ void vm_pin_page(struct supplemental_page_table *supt, void *page)
     }
 
     ASSERT (spte->status == ON_FRAME);
-    vm_frame_pin (spte->kpage);
+    frame_pin (spte->kpage);
 }
 
 
@@ -352,7 +352,7 @@ void vm_unpin_page(struct supplemental_page_table *supt, void *page)
     if (spte == NULL) PANIC ("Request page does not exist");
 
     if (spte->status == ON_FRAME) {
-        vm_frame_unpin (spte->kpage);
+        frame_unpin (spte->kpage);
     }
 }
 
@@ -386,7 +386,7 @@ static void spte_destroy_func(struct hash_elem* elem, void* aux UNUSED)
   // Clean up the associated frame
   if (entry->kpage != NULL) {
     ASSERT (entry->status == ON_FRAME);
-    vm_frame_remove_entry (entry->kpage);
+    frame_remove_entry (entry->kpage);
   }
   else if(entry->status == ON_SWAP) {
     vm_swap_free (entry->swap_index);

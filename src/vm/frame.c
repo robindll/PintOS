@@ -19,8 +19,8 @@ static struct lock frame_lock;
 static struct hash frame_map;
 
 // A circular list of frames for the clock eviction algorithm.
-static struct list frame_list;
-static struct list_elem* clock_ptr;
+static struct list frame_eviction_candidates;
+static struct list_elem* frame_ptr;
 
 /**
  * Helper functions for hash table operations.
@@ -48,17 +48,17 @@ struct frame_table_entry
 /**
  * Helper functions to perform concrete frame operations
  */
-static void vm_frame_do_free (void *kpage, bool free_page);
-static struct frame_table_entry* vm_clock_frame_next(void);
-static struct frame_table_entry* vm_pick_frame_to_evict(uint32_t* pagedir);
-static void* vm_evict_and_allocate_frame (enum palloc_flags flags);
-static void vm_frame_set_pinned (void* kpage, bool isPinned);
+static void frame_free_internal (void *kpage, bool free_page);
+static struct frame_table_entry* frame_next_clockwise(void);
+static struct frame_table_entry* frame_pick_one_to_evict(uint32_t* pagedir);
+static void* frame_evict_and_allocate (enum palloc_flags flags);
+static void frame_set_pinned (void* kpage, bool isPinned);
 
 
 /**
  * initialize frame table and related resources.
  */
-void vm_frame_init ()
+void frame_init ()
 {
     // Initializ global lock.
     lock_init (&frame_lock);
@@ -67,10 +67,10 @@ void vm_frame_init ()
     hash_init (&frame_map, frame_hash_func, frame_less_func, NULL);
     
     // Initialize circular frame list.
-    list_init (&frame_list);
+    list_init (&frame_eviction_candidates);
     
-    // Initialize there is no frame entry in frame list, so clock_ptr set to null.
-    clock_ptr = NULL;
+    // Initialize there is no frame entry in frame list, so frame_ptr set to null.
+    frame_ptr = NULL;
 }
 
 
@@ -79,7 +79,7 @@ void vm_frame_init ()
  * Return physical address associated with given page.
  * Function is thread-safe.
  */
-void* vm_frame_allocate (enum palloc_flags flags, void *upage)
+void* frame_allocate (enum palloc_flags flags, void *upage)
 {
     lock_acquire (&frame_lock);
     
@@ -87,7 +87,7 @@ void* vm_frame_allocate (enum palloc_flags flags, void *upage)
     void *frame_page = palloc_get_page (PAL_USER | flags);
     if (frame_page == NULL) {
         // page allocation failed. Evict frame and allocate a new frame.
-        frame_page = vm_evict_and_allocate_frame(flags);
+        frame_page = frame_evict_and_allocate(flags);
     }
 
     // Create frame table entry
@@ -109,7 +109,7 @@ void* vm_frame_allocate (enum palloc_flags flags, void *upage)
 
     // insert into frame table and frame list
     hash_insert (&frame_map, &frame->helem);
-    list_push_back (&frame_list, &frame->lelem);
+    list_push_back (&frame_eviction_candidates, &frame->lelem);
 
     lock_release (&frame_lock);
 
@@ -120,10 +120,10 @@ void* vm_frame_allocate (enum palloc_flags flags, void *upage)
 /**
  * Remove frame table entry for given kernel page and free memory used by the frame.
  */
-void vm_frame_free (void *kpage)
+void frame_free (void *kpage)
 {
     lock_acquire (&frame_lock);
-    vm_frame_do_free (kpage, true);
+    frame_free_internal (kpage, true);
     lock_release (&frame_lock);
 }
 
@@ -131,25 +131,25 @@ void vm_frame_free (void *kpage)
 /**
  * Remove frame table entry from frame table without freeing memory the frame uses.
  */
-void vm_frame_remove_entry (void *kpage)
+void frame_remove_entry (void *kpage)
 {
     lock_acquire (&frame_lock);
-    vm_frame_do_free (kpage, false);
+    frame_free_internal (kpage, false);
     lock_release (&frame_lock);
 }
 
 
 // Unpin a kernal page
-void vm_frame_unpin (void* kpage)
+void frame_unpin (void* kpage)
 {
-    vm_frame_set_pinned (kpage, false);
+    frame_set_pinned (kpage, false);
 }
 
 
 // Pin a kernel page.
-void vm_frame_pin (void* kpage)
+void frame_pin (void* kpage)
 {
-    vm_frame_set_pinned (kpage, true);
+    frame_set_pinned (kpage, true);
 }
 
 
@@ -162,7 +162,7 @@ void vm_frame_pin (void* kpage)
  * Deallocates memory used by a frame.
  * This function MST be called with frame_lock held.
  */
-void vm_frame_do_free (void *kpage, bool deallocate_frame)
+void frame_free_internal (void *kpage, bool deallocate_frame)
 {
     ASSERT (lock_held_by_current_thread(&frame_lock) == true);
     ASSERT (is_kernel_vaddr(kpage));
@@ -187,7 +187,7 @@ void vm_frame_do_free (void *kpage, bool deallocate_frame)
     // Free memory used by the kernal frame if needed.
     if (deallocate_frame) {
 #ifdef MY_DEBUG
-        printf("[DEBUG][vm_frame_do_free] Deallocating kpage 0x%x\n", (unsigned int)kpage);
+        printf("[DEBUG][frame_free_internal] Deallocating kpage 0x%x\n", (unsigned int)kpage);
 #endif
         palloc_free_page(kpage);
     }
@@ -200,17 +200,17 @@ void vm_frame_do_free (void *kpage, bool deallocate_frame)
 /**
  * Get next frame in frame list.
  */
-struct frame_table_entry* vm_clock_frame_next (void)
+struct frame_table_entry* frame_next_clockwise (void)
 {
-    if (list_empty(&frame_list))
+    if (list_empty(&frame_eviction_candidates))
         PANIC("Frame table is empty, which is impossible - there must be some leaks somewhere");
 
-    if (clock_ptr == NULL || clock_ptr == list_end (&frame_list))
-        clock_ptr = list_begin (&frame_list);
+    if (frame_ptr == NULL || frame_ptr == list_end (&frame_eviction_candidates))
+        frame_ptr = list_begin (&frame_eviction_candidates);
     else
-        clock_ptr = list_next (clock_ptr);
+        frame_ptr = list_next (frame_ptr);
 
-    struct frame_table_entry *frame = list_entry (clock_ptr, struct frame_table_entry, lelem);
+    struct frame_table_entry *frame = list_entry (frame_ptr, struct frame_table_entry, lelem);
     
     return frame;
 }
@@ -219,7 +219,7 @@ struct frame_table_entry* vm_clock_frame_next (void)
 /**
  * Pick a frame to be evicted using clock algorithm.
  */
-struct frame_table_entry* vm_pick_frame_to_evict (uint32_t* pagedir)
+struct frame_table_entry* frame_pick_one_to_evict (uint32_t* pagedir)
 {
     size_t n = hash_size (&frame_map);
     if (n == 0)
@@ -228,7 +228,7 @@ struct frame_table_entry* vm_pick_frame_to_evict (uint32_t* pagedir)
     size_t it;
     for (it = 0; it <= n + n; ++ it) // prevent infinite loop. 2n iterations is enough
     {
-        struct frame_table_entry *frame = vm_clock_frame_next();
+        struct frame_table_entry *frame = frame_next_clockwise();
     
         // if pinned, continue.
         if (frame->pinned) continue;
@@ -252,10 +252,10 @@ struct frame_table_entry* vm_pick_frame_to_evict (uint32_t* pagedir)
  * Return physical address of newly allocated frame.
  * This function MUST be called with frame_lock held.
  */
-static void* vm_evict_and_allocate_frame (enum palloc_flags flags)
+static void* frame_evict_and_allocate (enum palloc_flags flags)
 {
     // 1. Pick a page and swap it out.
-    struct frame_table_entry *evicted_frame = vm_pick_frame_to_evict( thread_current()->pagedir );
+    struct frame_table_entry *evicted_frame = frame_pick_one_to_evict( thread_current()->pagedir );
     ASSERT (evicted_frame != NULL && evicted_frame->thread != NULL);
 
     // 2. clear the page mapping, and replace it with swap
@@ -273,10 +273,10 @@ static void* vm_evict_and_allocate_frame (enum palloc_flags flags)
     vm_supt_set_dirty (evicted_frame->thread->supt, evicted_frame->upage, is_dirty);
 
 #ifdef MY_DEBUG
-        printf("[DEBUG][vm_evict_and_allocate_frame] Swap out page 0x%x\n", (unsigned int)evicted_frame->kpage);
+        printf("[DEBUG][frame_evict_and_allocate] Swap out page 0x%x\n", (unsigned int)evicted_frame->kpage);
 #endif
 
-    vm_frame_do_free (evicted_frame->kpage, true);  // evicted_frame is also invalidated
+    frame_free_internal (evicted_frame->kpage, true);  // evicted_frame is also invalidated
 
     // 5. Now allocate frame from user pool again, should be allocated successfully.
     void* frame_page = palloc_get_page (PAL_USER | flags);
@@ -289,7 +289,7 @@ static void* vm_evict_and_allocate_frame (enum palloc_flags flags)
 /**
  * Pin/Unpin a frame.
  */
-static void vm_frame_set_pinned (void* kpage, bool isPinned)
+static void frame_set_pinned (void* kpage, bool isPinned)
 {
     lock_acquire (&frame_lock);
 

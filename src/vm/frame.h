@@ -10,29 +10,29 @@
 /**
  * initialize frame table and related resources.
  */
-void vm_frame_init (void);
+void frame_init (void);
 
 /**
  * Allocate a frame with given flags for given page,
  * Return physical address associated with given page.
  * Function is thread-safe.
  */
-void* vm_frame_allocate (enum palloc_flags flags, void *upage);
+void* frame_allocate (enum palloc_flags flags, void *upage);
 
 /**
  * Remove frame table entry for given kernel page and free memory used by the frame.
  */
-void vm_frame_free (void*);
+void frame_free (void*);
 
 /**
  * Remove frame table entry from frame table without freeing memory the frame uses.
  */
-void vm_frame_remove_entry (void*);
+void frame_remove_entry (void*);
 
 /** Unpin a kernal page */
-void vm_frame_unpin (void* kpage);
+void frame_unpin (void* kpage);
 
 /** Unpin a kernal page */
-void vm_frame_pin (void* kpage);
+void frame_pin (void* kpage);
 
 #endif

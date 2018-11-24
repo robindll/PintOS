@@ -108,7 +108,7 @@ main (void)
   paging_init ();
 #ifdef VM
   /* Initialize frame table */
-  vm_frame_init();
+  frame_init();
 #endif
 
   /* Segmentation. */
