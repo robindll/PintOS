@@ -193,12 +193,12 @@ page_fault (struct intr_frame *f)
    if (on_stack_frame && is_stack_addr) {
       // Faulted page is in user virtual address and does not exceed stack limit
       // Add new entry to supplemental page table if it does not exist.
-      if (vm_supt_has_entry (curr_thread->supt, fault_page) == false) {
-         vm_supt_install_zeropage (curr_thread->supt, fault_page);
+      if (supt_pt_has_entry (curr_thread->supt, fault_page) == false) {
+         supt_pt_install_zeropage (curr_thread->supt, fault_page);
       }
    }
 
-   if (!vm_load_page (curr_thread->supt, curr_thread->pagedir, fault_page)) {
+   if (!supt_pt_load_page (curr_thread->supt, curr_thread->pagedir, fault_page)) {
       goto PAGE_FAULT_VIOLATED_ACCESS;
    }
 

@@ -269,8 +269,8 @@ static void* frame_evict_and_allocate (enum palloc_flags flags)
 
     // 4. Swap out frame, update supplemental page table end free physical memory used by evicted frame. 
     uint32_t swap_idx = vm_swap_out (evicted_frame->kpage);
-    vm_supt_set_swap (evicted_frame->thread->supt, evicted_frame->upage, swap_idx);
-    vm_supt_set_dirty (evicted_frame->thread->supt, evicted_frame->upage, is_dirty);
+    supt_pt_set_swap (evicted_frame->thread->supt, evicted_frame->upage, swap_idx);
+    supt_pt_set_dirty (evicted_frame->thread->supt, evicted_frame->upage, is_dirty);
 
 #ifdef MY_DEBUG
         printf("[DEBUG][frame_evict_and_allocate] Swap out page 0x%x\n", (unsigned int)evicted_frame->kpage);

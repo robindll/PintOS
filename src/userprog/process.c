@@ -201,7 +201,7 @@ process_exit (void)
 #ifdef VM
   /* Destroy the supplemental page table,
    * all the frames used by this process, and swaps. */ 
-  vm_supt_destroy (cur->supt);
+  supt_pt_destroy (cur->supt);
   cur->supt = NULL;
 #endif
 
@@ -328,7 +328,7 @@ load (const char *cmd_line, void (**eip) (void), void **esp)
   t->pagedir = pagedir_create ();
 
 #ifdef VM
-  t->supt = vm_supt_create ();
+  t->supt = supt_pt_create ();
 #endif
 
   if (t->pagedir == NULL) 
@@ -523,7 +523,7 @@ load_segment (struct file *file, off_t ofs, uint8_t *upage,
       struct thread* curr_thread = thread_current ();
       ASSERT (pagedir_get_page (curr_thread->pagedir, upage) == NULL); // This virtual address should have not been installed
 
-      if (! vm_supt_install_filesys (curr_thread->supt, upage, file, ofs, page_read_bytes, page_zero_bytes, writable)) {
+      if (! supt_pt_install_filesys (curr_thread->supt, upage, file, ofs, page_read_bytes, page_zero_bytes, writable)) {
         return false;
       }
 #endif */
@@ -700,7 +700,7 @@ install_page (void *upage, void *kpage, bool writable)
 #endif
 
 #ifdef VM
-  success = success && vm_supt_install_frame (t->supt, upage, kpage);
+  success = success && supt_pt_install_frame (t->supt, upage, kpage);
 
 #ifdef MY_DEBUG
   printf("[DEBUG][install_page] Associate upage %p with kpage %p in supt page table : %d\n", upage, kpage, success);
