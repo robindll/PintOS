@@ -98,8 +98,8 @@ palloc_get_multiple (enum palloc_flags flags, size_t page_cnt)
     }
   
 #ifdef MY_DEBUG
-  printf("[DEBUG][palloc_get_multiple] 0x%x - 0x%x\n", pages, (char*)pages + page_cnt);
-#endif MY_DEBUG
+  printf("[DEBUG][palloc_get_multiple] 0x%x - 0x%x\n", (unsigned int)pages, (unsigned int)pages + page_cnt);
+#endif
 
   return pages;
 }
@@ -142,8 +142,8 @@ palloc_free_multiple (void *pages, size_t page_cnt)
 #endif
 
 #ifdef MY_DEBUG
-  printf("[DEBUG][palloc_free_multiple] 0x%x - 0x%x\n", pages, (char*)pages + page_cnt);
-#endif MY_DEBUG
+  printf("[DEBUG][palloc_free_multiple] 0x%x - 0x%x\n", (unsigned int)pages, (unsigned int)pages + page_cnt);
+#endif
 
   ASSERT (bitmap_all (pool->used_map, page_idx, page_cnt));
   bitmap_set_multiple (pool->used_map, page_idx, page_cnt, false);
