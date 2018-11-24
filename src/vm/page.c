@@ -283,7 +283,7 @@ bool supt_pt_load_page(struct supplemental_page_table *supt, uint32_t *pagedir, 
 
         case ON_SWAP:
             // Data is on swap, load the data back from swap
-            vm_swap_in (spte->swap_index, frame);
+            swap_in (spte->swap_index, frame);
             break;
         
         case FROM_FILESYS:
@@ -389,7 +389,7 @@ static void spte_destroy_func(struct hash_elem* elem, void* aux UNUSED)
     frame_remove_entry (entry->kpage);
   }
   else if(entry->status == ON_SWAP) {
-    vm_swap_free (entry->swap_index);
+    swap_free (entry->swap_index);
   }
 
   // Clean up SPTE entry.

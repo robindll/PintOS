@@ -75,7 +75,7 @@ static void locate_block_device (enum block_type, const char *name);
 #endif
 
 #ifdef VM
-void vm_swap_init ();
+void swap_init ();
 #endif
 
 int main (void) NO_RETURN;
@@ -140,7 +140,7 @@ main (void)
 #endif
 #ifdef VM
   /* Initialize swap table */
-  vm_swap_init ();
+  swap_init ();
 #endif
 
   printf ("Boot complete.\n");

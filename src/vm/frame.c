@@ -268,7 +268,7 @@ static void* frame_evict_and_allocate (enum palloc_flags flags)
     is_dirty = is_dirty || pagedir_is_dirty (evicted_frame->thread->pagedir, evicted_frame->kpage);
 
     // 4. Swap out frame, update supplemental page table end free physical memory used by evicted frame. 
-    uint32_t swap_idx = vm_swap_out (evicted_frame->kpage);
+    uint32_t swap_idx = swap_out (evicted_frame->kpage);
     supt_pt_set_swap (evicted_frame->thread->supt, evicted_frame->upage, swap_idx);
     supt_pt_set_dirty (evicted_frame->thread->supt, evicted_frame->upage, is_dirty);
 
