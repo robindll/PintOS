@@ -145,7 +145,7 @@ bool vm_supt_install_filesys (struct supplemental_page_table *supt, void *page, 
     spte->writable = writable;
 
 #ifdef MY_DEBUG
-    printf("[DEBUG][vm_supt_install_filesys] Installing page : upage=%p kpage=%p status=%d dirty=%d swap_index=%d\n", spte->upage, spte->kpage, spte->status, spte->dirty, spte->swap_index);
+    printf("[DEBUG][vm_supt_install_filesys] Installing page : upage=%p kpage=%p status=%d dirty=%d swap_index=%d file=%s ofs=%x rbytes=%u zbytes=%u writable=%d\n", spte->upage, spte->kpage, spte->status, spte->dirty, spte->swap_index, spte->file, spte->file_offset, spte->read_bytes, spte->zero_bytes, spte->writable);
 #endif
     struct hash_elem *prev_elem;
     prev_elem = hash_insert (&supt->page_map, &spte->elem);

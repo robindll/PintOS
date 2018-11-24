@@ -518,7 +518,7 @@ load_segment (struct file *file, off_t ofs, uint8_t *upage,
       size_t page_read_bytes = read_bytes < PGSIZE ? read_bytes : PGSIZE;
       size_t page_zero_bytes = PGSIZE - page_read_bytes;
 
-#ifdef VM
+/*#ifdef VM
       // Lazy load virtual pages
       struct thread* curr_thread = thread_current ();
       ASSERT (pagedir_get_page (curr_thread->pagedir, upage) == NULL); // This virtual address should have not been installed
@@ -526,7 +526,7 @@ load_segment (struct file *file, off_t ofs, uint8_t *upage,
       if (! vm_supt_install_filesys (curr_thread->supt, upage, file, ofs, page_read_bytes, page_zero_bytes, writable)) {
         return false;
       }
-#endif
+#endif */
 
       /* Get a page of memory. */
       uint8_t *kpage = vm_frame_allocate (PAL_USER, upage);
