@@ -536,6 +536,9 @@ load_segment (struct file *file, off_t ofs, uint8_t *upage,
       /* Load this page. */
       if (file_read (file, kpage, page_read_bytes) != (int) page_read_bytes)
         {
+#ifdef MY_DEBUG
+          printf("[DEBUG][load_segment] failed to read kpage 0x%x, page_read_bytes=%u\n", (unsigned int) kpage, page_read_bytes);
+#endif
           vm_frame_free (kpage);
           return false; 
         }
@@ -544,6 +547,9 @@ load_segment (struct file *file, off_t ofs, uint8_t *upage,
       /* Add the page to the process's address space. */
       if (!install_page (upage, kpage, writable)) 
         {
+#ifdef MY_DEBUG
+          printf("[DEBUG][load_segment] failed to install kpage 0x%x, writable=%u\n", (unsigned int) kpage, writable);
+#endif
           vm_frame_free (kpage);
           return false; 
         }
@@ -655,8 +661,12 @@ setup_stack (const char *cmd_line, void **esp)
       uint8_t *upage = ((uint8_t *) PHYS_BASE) - PGSIZE;
       if (install_page (upage, kpage, true))
         success = init_cmd_line (kpage, upage, cmd_line, esp);
-      else
+      else {
+#ifdef MY_DEBUG
+        printf("[DEBUG][setup_stack] failed to install kpage 0x%x, writable=%u\n", (unsigned int) kpage, true);
+#endif
         vm_frame_free (kpage);
+      }
     }
   return success;
 }

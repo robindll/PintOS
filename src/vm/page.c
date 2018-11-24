@@ -237,6 +237,9 @@ bool vm_load_page(struct supplemental_page_table *supt, uint32_t *pagedir, void 
             // Data was loaded from file, now we just need to 
             // reload it from file.
             if (vm_load_page_from_filesys (spte, frame) == false) {
+#ifdef MY_DEBUG
+                printf("[DEBUG][vm_load_page] failed to load page 0x%x from filesys\n", (unsigned int) frame);
+#endif
                 vm_frame_free (frame);
                 return false;
             }
@@ -251,6 +254,9 @@ bool vm_load_page(struct supplemental_page_table *supt, uint32_t *pagedir, void 
     // Point the page table entry for the faulting virtual address to physical address
     if (!pagedir_set_page (pagedir, page, frame, writable)) {
         // Didn't find page in page table
+#ifdef MY_DEBUG
+        printf("[DEBUG][vm_load_page] failed to set page 0x%x in page dir, writable=%d\n", (unsigned int) frame, writable);
+#endif
         vm_frame_free (frame);
         return false;
     }

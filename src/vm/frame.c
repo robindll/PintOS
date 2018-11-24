@@ -271,6 +271,11 @@ static void* vm_evict_and_allocate_frame (enum palloc_flags flags)
     uint32_t swap_idx = vm_swap_out (evicted_frame->kpage);
     vm_supt_set_swap (evicted_frame->thread->supt, evicted_frame->upage, swap_idx);
     vm_supt_set_dirty (evicted_frame->thread->supt, evicted_frame->upage, is_dirty);
+
+#ifdef MY_DEBUG
+        printf("[DEBUG][vm_evict_and_allocate_frame] Swap out page 0x%x\n", (unsigned int)evicted_frame->kpage);
+#endif
+
     vm_frame_do_free (evicted_frame->kpage, true);  // evicted_frame is also invalidated
 
     // 5. Now allocate frame from user pool again, should be allocated successfully.
