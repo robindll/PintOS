@@ -14,7 +14,7 @@ void frame_init (void);
 
 /**
  * Allocate a frame with given flags for given page,
- * Return physical address associated with given page.
+ * Return kernel virtual address associated with given page.
  * Function is thread-safe.
  */
 void* frame_allocate (enum palloc_flags flags, void *upage);
