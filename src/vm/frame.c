@@ -16,7 +16,13 @@
 static struct lock frame_lock;
 
 // Map storing mappings from physical address to frame table entry
-static struct hash frame_map;
+struct frame_map
+{
+    struct hash map;
+};
+
+// frame table
+static struct frame_map frame_table;
 
 // A circular list of frames for the clock eviction algorithm.
 static struct list frame_eviction_candidates;
@@ -40,7 +46,7 @@ struct frame_table_entry
     bool pinned;               // Indicate whether this frame is allowed to be evicted.
                                // When pinned == true, this frame is not allowed to be evicted.
 
-    struct hash_elem helem;    // see ::frame_map 
+    struct hash_elem helem;    // see ::frame_map->map 
     struct list_elem lelem;    // see ::frame_list
 };
 
@@ -64,7 +70,7 @@ void frame_init ()
     lock_init (&frame_lock);
 
     // Initializ hash table.
-    hash_init (&frame_map, frame_hash_func, frame_less_func, NULL);
+    hash_init (&frame_table.map, frame_hash_func, frame_less_func, NULL);
     
     // Initialize circular frame list.
     list_init (&frame_eviction_candidates);
@@ -108,7 +114,7 @@ void* frame_allocate (enum palloc_flags flags, void *upage)
     frame->pinned = true;           // Do not allow this frame to be evicted until frame table is fully updated.
 
     // insert into frame table and frame list
-    hash_insert (&frame_map, &frame->helem);
+    hash_insert (&frame_table.map, &frame->helem);
     list_push_back (&frame_eviction_candidates, &frame->lelem);
 
     lock_release (&frame_lock);
@@ -172,7 +178,7 @@ void frame_free_internal (void *kpage, bool deallocate_frame)
     struct frame_table_entry temp;
     temp.kpage = kpage;
 
-    struct hash_elem* elem = hash_find (&frame_map, &(temp.helem));
+    struct hash_elem* elem = hash_find (&frame_table.map, &(temp.helem));
     if (elem == NULL) {
         PANIC ("The page to be freed is not stored in the frame table");
     }
@@ -181,7 +187,7 @@ void frame_free_internal (void *kpage, bool deallocate_frame)
     frame = hash_entry(elem, struct frame_table_entry, helem);
 
     // Remove the frame table entry from frame table and frame list.
-    hash_delete (&frame_map, &frame->helem);
+    hash_delete (&frame_table.map, &frame->helem);
     list_remove (&frame->lelem);
 
     // Free memory used by the kernal frame if needed.
@@ -221,7 +227,7 @@ struct frame_table_entry* frame_next_clockwise (void)
  */
 struct frame_table_entry* frame_pick_one_to_evict (uint32_t* pagedir)
 {
-    size_t n = hash_size (&frame_map);
+    size_t n = hash_size (&frame_table.map);
     if (n == 0)
         PANIC("Frame table is empty, which is impossible - there must be leaks somewhere");
 
@@ -296,7 +302,7 @@ static void frame_set_pinned (void* kpage, bool isPinned)
     // Lookup frame entry to be pinned/unpinned.
     struct frame_table_entry temp;
     temp.kpage = kpage;
-    struct hash_elem *elem = hash_find (&frame_map, &(temp.helem));
+    struct hash_elem *elem = hash_find (&frame_table.map, &(temp.helem));
     if (elem == NULL) {
         PANIC ("The frame to be pinned/unpinned does not exist");
     }
