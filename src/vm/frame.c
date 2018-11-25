@@ -56,7 +56,7 @@ struct frame_table_entry
  */
 static void frame_free_internal (void *kpage, bool free_page);
 static struct frame_table_entry* frame_next_clockwise(void);
-static struct frame_table_entry* frame_pick_one_to_evict(uint32_t* pagedir);
+static struct frame_table_entry* frame_pick_one_to_evict();
 static void* frame_evict_and_allocate (enum palloc_flags flags);
 static void frame_set_pinned (void* kpage, bool isPinned);
 
@@ -225,7 +225,7 @@ struct frame_table_entry* frame_next_clockwise (void)
 /**
  * Pick a frame to be evicted using clock algorithm.
  */
-struct frame_table_entry* frame_pick_one_to_evict (uint32_t* pagedir)
+struct frame_table_entry* frame_pick_one_to_evict ()
 {
     size_t n = hash_size (&frame_table.map);
     if (n == 0)
@@ -240,8 +240,8 @@ struct frame_table_entry* frame_pick_one_to_evict (uint32_t* pagedir)
         if (frame->pinned) continue;
     
         // if referenced, give it a second chance.
-        else if (pagedir_is_accessed (pagedir, frame->upage)) {
-            pagedir_set_accessed (pagedir, frame->upage, false);
+        else if (pagedir_is_accessed (frame->thread->pagedir, frame->upage)) {
+            pagedir_set_accessed (frame->thread->pagedir, frame->upage, false);
             continue;
         }
 
@@ -261,7 +261,7 @@ struct frame_table_entry* frame_pick_one_to_evict (uint32_t* pagedir)
 static void* frame_evict_and_allocate (enum palloc_flags flags)
 {
     // 1. Pick a page and swap it out.
-    struct frame_table_entry *evicted_frame = frame_pick_one_to_evict( thread_current()->pagedir );
+    struct frame_table_entry *evicted_frame = frame_pick_one_to_evict();
     ASSERT (evicted_frame != NULL && evicted_frame->thread != NULL);
 
     // 2. clear the page mapping, and replace it with swap
