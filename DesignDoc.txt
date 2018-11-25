@@ -248,10 +248,8 @@ When both conditions(on_stack_frame, is_user_stack_addr) are met, we install a z
 >> kernel and user virtual addresses that alias a single frame, or
 >> alternatively how do you avoid the issue?
 
-We calculate the frame's accessed bit lazily : in frame_pick_one_to_evict()
-right before performing clock algorithm, we calculate each frame's access bit = upage_access_bit | kpage_access_bit.
-Store it in frame_table_entry. Then use it to perform clock algorithm to pick a victim.
-
+We used clock algorithm during eviction, only accessed bit is needed.
+In this algorithm, we always check user page's accessed bit so it won't be a problem.
 
 ---- SYNCHRONIZATION ----
 
@@ -325,10 +323,14 @@ static size_t max_swap_page_count;  // The number of possible swapped pages
 We implemented clock algorithm decribed here:
 https://en.wikipedia.org/wiki/Page_replacement_algorithm
 
-The frames in memory are kept in a circular list frame_eviction_candidates,
-each frame_table_entry has a boolean member is_accessed indicating whether user page
-or kernel page is accessed by CPU. Following are the steps to pick a victim
-using clock algorithm
+The frames in memory are kept in a circular list frame_eviction_candidates.
+We loop following steps until we find a victim:
+1. Move to next frame in circular list
+2. Get pagedir of current frame's owner thread
+3. Use pagedir_is_accessed check whether frame->upage is accessed.(Always check upage associated with the frame to avoid inconsistency)
+4. If the upage is not accessed, pick it as victim.
+5. If the upage is accessed, clear the access bit using pagedir_set_accessed().(give it a second chance)
+
 
 >> B3: When a process P obtains a frame that was previously used by a
 >> process Q, how do you adjust the page table (and any other data
