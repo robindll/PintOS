@@ -44,7 +44,7 @@ frame_table_entry : Data structure used for recording each frame's info. Includi
                     the frame and whether the frame is allowed to be picked as victim during eviction. 
 /**
  * Frame Table Entry
- * Stores frame's virtual/physical addresses and metadata.
+ * Stores frame's kernal and user page address, and other meta data.
  */
 struct frame_table_entry
 {
@@ -71,7 +71,7 @@ struct frame_map
 static struct frame_map frame_table;
 -----------------------------------------------------------------
 
-frame_eviction_candidates : a list recording the frames that currently being used.
+frame_eviction_candidates : a cirtular list records the frames that currently being used.
                             Eviction algorithm picks the first unpinned frame as victim to swap out
                             from frame_ptr. frame_ptr records the frame picked as victim in last eviction.
 
@@ -98,10 +98,10 @@ enum page_status {
 };
 -----------------------------------------------------------------
 
-supplemental_page_table struct : A map using user page address as key. The supplemental_page_table records
+supplemental_page_table struct : A map uese user page address as key. The supplemental_page_table records
                                  every user page's status which includes its corresponding kernel page addresss,
                                  status (whether on swap or on frame), dirty bits, file and offset info if
-                                 the page is loaded direclty from file. These information is used for swapping out/in
+                                 the page is loaded direclty from file. These information is used for swapping in
                                  a page during page fault.
 
 /**
@@ -114,8 +114,7 @@ struct supplemental_page_table
 };
 -----------------------------------------------------------------
 
-supplemental_page_table_entry : A data structure used to record a user page's information. The information 
-                                is used for swapping out/in the page content between memory and swap disk.
+supplemental_page_table_entry :  A data structure records page status and sources to load data in page fault.
 /**
  * Supplemental page table entry (SPTE)
  */
@@ -140,49 +139,22 @@ struct supplemental_page_table_entry
 };
 -----------------------------------------------------------------
 
-Supt member added to thread structure : There is only one supplemental page table per process. It's created when loading a
-                                        program in load() function in process.c along with pagedir. A supplemental_page_table pointer
-                                        member supt is added to thread data structure to store it. So it can be retrieved
-                                        anytime. 
+"Supt" member added to thread data structure : 
+        There is only one supplemental page table per process. It's created when loading a
+        program in load() function in process.c along with pagedir. A supplemental_page_table pointer
+        member supt is added to thread data structure to store it. So it can be retrieved
+        anytime with thread data structure.
+ 
 struct thread
-  {
-    /* Owned by thread.c. */
-    tid_t tid;                          /* Thread identifier. */
-    enum thread_status status;          /* Thread state. */
-    char name[16];                      /* Name (for debugging purposes). */
-    uint8_t *stack;                     /* Saved stack pointer. */
-    int priority;                       /* Priority. */
-    struct list_elem allelem;           /* List element for all threads list. */
-
-    /* Owned by process.c. */
-    struct wait_status *wait_status;    /* This process's completion status. */
-    struct list children;               /* Completion status of children. */
-
-    /* Shared between thread.c and synch.c. */
-    struct list_elem elem;              /* List element. */
-    
-
-#ifdef USERPROG
-    /* Owned by userprog/process.c. */
-    uint32_t *pagedir;                  /* Page directory. */
-
-    uint8_t *current_esp;               /* The current value of the user program’s stack pointer.
-                                           A page fault might occur in the kernel, so we might
-                                           need to store esp on transition to kernel mode. (4.3.3) */
-#endif
-    struct file *bin_file;              /* Executable. */
-
-    /* Owned by syscall.c. */
-    struct list fds;                    /* List of file descriptors. */
-    int next_handle;                    /* Next handle value. */
+{
+...
 
 #ifdef VM
     struct supplemental_page_table *supt;   /* Supplemental Page Table. */
 #endif
 
-    /* Owned by thread.c. */
-    unsigned magic;                     /* Detects stack overflow. */
-  };
+...
+};
 -----------------------------------------------------------------
 
 ---- ALGORITHMS ----
@@ -190,17 +162,18 @@ struct thread
 >> A2: In a few paragraphs, describe your code for locating the frame,
 >> if any, that contains the data of a given page.
 
-Frame locating:
+[Frame locating]
 When an virtual page is accessed, the physical address is returned if the PTE says the frame
-correspoinding to the virutal address is present in memory. The kernel virtual address recorded
-in PTE has a 1:1 mapping into frame number in PintOS. The physical address of the frame can be obtained by
-calling vtop(kpage_addr). Otherwise, a page fault is triggered for loading the frame into memory.
+correspoinding to the virutal address is present in memory. Otherwise, a page fault is triggered
+for loading the frame into memory.
 
+[Page fault handling]
+When a page fault is triggered, page_fault() function in exception.c is called to handle the page fault.
+First the virtual address fault_addr causing page fault is retrieved from CR2 register. the page number
+is obtained through calling page_no = pg_round_down(fault_addr). A check is performed to see the faulted
+address indicates stack need to be grown to the faulted page (see "Stack Growth" section in later paragraph).
+Install a all-zero page for it if yes. Then we're going to use supt_pt_load_page() to load this page into memory.
 
-Page fault handling:
-When a page fault is triggered, the frame info is passed to page_fault(f) function in exception.c
-to handle the page fault. First we get the page number from fault_addr by using
-pg_round_down(fault_addr). Then we're going to use supt_pt_load_page() to load this page into memory.
 There are 5 cases need to during loading page:
 
 1. The faulted page is not installed (Can't find entry for it in supplemental_page_table):
@@ -229,19 +202,23 @@ There are 5 cases need to during loading page:
 For case 3-5 above, the newly allocated frame is pinned before PTE and SPTE is updated.
 So they are not chosen as victim during frame eviction.
 
-Stack growth:
-During page fault handling. We use following conditions to determine the whether the page fault
-is happened during stack growth:
 
-on_stack_frame = (esp <= fault_addr || fault_addr == f->esp - 4 || faulted_addr == f->esp - 32)
+[Stack growth]
+During page fault handling. We use following condition to determine whether the faulted_addr indicates
+a stack need to be extended to the page that faulted.
 
-The latter two conditions indicates the special case that page fault triggered during access permission
-check before 80x86 PUSH or PUSHA instruction.
+extending_stack = (fault_addr == f->esp - 4 || faulted_addr == f->esp - 32)
 
-At the same time, we also verify the the address is in user stack and does not exceed MAX_STACK_SIZE:
+The two conditions indicates the case that page fault triggered during access permission
+check before 80x86 PUSH or PUSHA instruction. In this case the stack grows to a new user user page
+that haven't been installed. 
+
+We also need to verify the the address is in user stack and does not exceed MAX_STACK_SIZE:
 is_user_stack_addr = (PHYS_BASE - MAX_STACK_SIZE <= fault_addr && fault_addr < PHYS_BASE);
 
-When both conditions(on_stack_frame, is_user_stack_addr) are met, we install a zeropage for it to complete stack growth.
+When both conditions(extending_stack, is_user_stack_addr) are met, we install a zeropage for the virtual page
+containing faulted_addr to complete stack growth.
+
 
 
 >> A3: How does your code coordinate accessed and dirty bits between
@@ -251,6 +228,8 @@ When both conditions(on_stack_frame, is_user_stack_addr) are met, we install a z
 We used clock algorithm during eviction, only accessed bit is needed.
 In this algorithm, we always check user page's accessed bit so it won't be a problem.
 
+
+
 ---- SYNCHRONIZATION ----
 
 >> A4: When two user processes both need a new frame at the same time,
@@ -258,6 +237,8 @@ In this algorithm, we always check user page's accessed bit so it won't be a pro
 
 We used a global lock (frame_lock in frame.c) to serialize all access to frame_table.
 Thus, the allocation/deallocation of frame are atomic. 
+
+
 
 ---- RATIONALE ----
 
@@ -282,6 +263,8 @@ efficient paging. In this data structure:
 
 4. We also stored the file, offset, read_byte, zero_byte, writable information for
    lazily loading the content from file.
+
+
 
 
                PAGING TO AND FROM DISK
@@ -332,13 +315,25 @@ We loop following steps until we find a victim:
 5. If the upage is accessed, clear the access bit using pagedir_set_accessed().(give it a second chance)
 
 
+
 >> B3: When a process P obtains a frame that was previously used by a
 >> process Q, how do you adjust the page table (and any other data
 >> structures) to reflect the frame Q no longer has?
 
+First, the present bit of user virtual page (say : upage) associated with this frame is cleared in process Q's table.
+Second, the content in frame owned by process Q is swapped out to swap, it's corresponding supplemental_page_table_entry
+is updated to reflect this new status (ON_SWAP), and the swap index is recorded in supplemental_page_table_entry. 
+
+With the chagnes above, process Q can page back the content from swap when accessing upage next time.
+
+
+
 >> B4: Explain your heuristic for deciding whether a page fault for an
 >> invalid virtual address should cause the stack to be extended into
 >> the page that faulted.
+
+
+
 
 ---- SYNCHRONIZATION ----
 

@@ -188,7 +188,9 @@ page_fault (struct intr_frame *f)
    // Stack Growth
    bool on_stack_frame = false;
    bool is_user_stack_addr = false;
-   on_stack_frame = (esp <= fault_addr || fault_addr == f->esp - 4 || fault_addr == f->esp - 32);
+   bool extending_stack = false;
+   extending_stack = (fault_addr == f->esp - 4 || fault_addr == f->esp - 32);
+   on_stack_frame = (esp <= fault_addr || extending_stack);
    is_user_stack_addr = (PHYS_BASE - MAX_STACK_SIZE <= fault_addr && fault_addr < PHYS_BASE);
    if (on_stack_frame && is_user_stack_addr) {
       // Faulted page is in user virtual address and does not exceed stack limit
