@@ -41,7 +41,7 @@ void swap_init (void)
  */
 uint32_t swap_out (void* page)
 {
-    // Ensure that the page is on user's virtual memory.
+    // Ensure that the page is on kernel virtual memory.
     ASSERT (page >= PHYS_BASE);
 
     // Find an available block slot to use
