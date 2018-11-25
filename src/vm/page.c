@@ -55,15 +55,15 @@ void supt_pt_destroy (struct supplemental_page_table *supt)
  * Lookup and return supplemental page table entry for given page
  * Return NULL if no such entry is found
  */
-struct supplemental_page_table_entry* supt_pt_lookup (struct supplemental_page_table *supt, void *page)
+struct supplemental_page_table_entry* supt_pt_lookup (struct supplemental_page_table *supt, void *upage)
 {
 #ifdef MY_DEBUG
-    printf("[DEBUG][supt_pt_lookup] Looking for page %p in SPTE\n", page);
+    printf("[DEBUG][supt_pt_lookup] Looking for page %p in SPTE\n", upage);
 #endif
 
     // Create temp spte for looking up the hash table
     struct supplemental_page_table_entry spte_temp;
-    spte_temp.upage = page;
+    spte_temp.upage = upage;
 
 #ifdef MY_DEBUG
     printf("[DEBUG][supt_pt_lookup] Temp SPTE for search created\n");
@@ -74,13 +74,13 @@ struct supplemental_page_table_entry* supt_pt_lookup (struct supplemental_page_t
     if (elem == NULL) {
         // Didn't find the entry
 #ifdef MY_DEBUG
-        printf("[DEBUG][supt_pt_lookup] Didn't find SPTE for %p\n", page);
+        printf("[DEBUG][supt_pt_lookup] Didn't find SPTE for %p\n", upage);
 #endif
         return NULL;
     }
 
 #ifdef MY_DEBUG
-        printf("[DEBUG][supt_pt_lookup] Found SPTE for %p\n", page);
+        printf("[DEBUG][supt_pt_lookup] Found SPTE for %p\n", upage);
 #endif
     return hash_entry(elem, struct supplemental_page_table_entry, elem);
 }
@@ -91,13 +91,13 @@ struct supplemental_page_table_entry* supt_pt_lookup (struct supplemental_page_t
  * The page should already on the frame.
  * Return true if successful, otherwise return false.
  */
-bool supt_pt_install_frame (struct supplemental_page_table *supt, void *page, void *frame)
+bool supt_pt_install_frame (struct supplemental_page_table *supt, void *upage, void *kpage)
 {
     struct supplemental_page_table_entry *spte =
         (struct supplemental_page_table_entry*) malloc(sizeof(struct supplemental_page_table_entry));
     
-    spte->upage = page;
-    spte->kpage = frame;
+    spte->upage = upage;
+    spte->kpage = kpage;
     spte->status = ON_FRAME;
     spte->dirty = false;
     spte->swap_index = NO_SAWP_INDEX;
@@ -129,12 +129,12 @@ bool supt_pt_install_frame (struct supplemental_page_table *supt, void *page, vo
 /**
  * Create supplemental page table entry a new page specified by the starting address "upage"
  */
-bool supt_pt_install_filesys (struct supplemental_page_table *supt, void *page, struct file * file, int32_t offset, uint32_t read_bytes, uint32_t zero_bytes, bool writable)
+bool supt_pt_install_filesys (struct supplemental_page_table *supt, void *upage, struct file * file, int32_t offset, uint32_t read_bytes, uint32_t zero_bytes, bool writable)
 {
     struct supplemental_page_table_entry *spte =
         (struct supplemental_page_table_entry*) malloc(sizeof(struct supplemental_page_table_entry));
 
-    spte->upage = page;
+    spte->upage = upage;
     spte->kpage = NULL;
     spte->status = FROM_FILESYS;
     spte->dirty = false;
@@ -171,12 +171,12 @@ bool supt_pt_install_filesys (struct supplemental_page_table *supt, void *page, 
 /**
  * Create supplemental page table entry for a new zero-ed page.
  */
-bool supt_pt_install_zeropage (struct supplemental_page_table *supt, void *page)
+bool supt_pt_install_zeropage (struct supplemental_page_table *supt, void *upage)
 {
     struct supplemental_page_table_entry* spte = (struct supplemental_page_table_entry*) malloc(sizeof(struct supplemental_page_table_entry));
     ASSERT (spte != NULL);
 
-    spte->upage = page;
+    spte->upage = upage;
     spte->kpage = NULL;
     spte->status = ALL_ZERO;
     spte->dirty = false;
@@ -207,9 +207,9 @@ bool supt_pt_install_zeropage (struct supplemental_page_table *supt, void *page)
 /**
  * Mark a page is swapped out to given swap index
  */
-bool supt_pt_set_swap (struct supplemental_page_table *supt, void *page, uint32_t swap_index)
+bool supt_pt_set_swap (struct supplemental_page_table *supt, void *upage, uint32_t swap_index)
 {
-    struct supplemental_page_table_entry* spte = supt_pt_lookup (supt, page);
+    struct supplemental_page_table_entry* spte = supt_pt_lookup (supt, upage);
     
     if (spte == NULL) {
         // Didn't find supplemental page table entry for given page
@@ -227,16 +227,16 @@ bool supt_pt_set_swap (struct supplemental_page_table *supt, void *page, uint32_
 /**
  * Return whether supplemental page table has entry for given page
  */
-bool supt_pt_has_entry (struct supplemental_page_table *supt, void *page)
+bool supt_pt_has_entry (struct supplemental_page_table *supt, void *upage)
 {
-    return supt_pt_lookup (supt, page) != NULL;
+    return supt_pt_lookup (supt, upage) != NULL;
 }
 
 
 /** Set dirty status for a given page. */
-bool supt_pt_set_dirty (struct supplemental_page_table *supt, void *page, bool value)
+bool supt_pt_set_dirty (struct supplemental_page_table *supt, void *upage, bool value)
 {
-    struct supplemental_page_table_entry *spte = supt_pt_lookup(supt, page);
+    struct supplemental_page_table_entry *spte = supt_pt_lookup(supt, upage);
     if (spte == NULL) PANIC("Set dirty - the request page doesn't exist in supplemental page table.");
 
     spte->dirty = value;
@@ -247,10 +247,10 @@ bool supt_pt_set_dirty (struct supplemental_page_table *supt, void *page, bool v
 /**
  * Load page back to frame from swap
  */
-bool supt_pt_load_page(struct supplemental_page_table *supt, uint32_t *pagedir, void *page)
+bool supt_pt_load_page(struct supplemental_page_table *supt, uint32_t *pagedir, void *upage)
 {
     // Check whether memory reference is valid
-    struct supplemental_page_table_entry *spte = supt_pt_lookup (supt, page);
+    struct supplemental_page_table_entry *spte = supt_pt_lookup (supt, upage);
     
     if (spte == NULL) {
         // No supplemental page table entry for given page
@@ -263,9 +263,9 @@ bool supt_pt_load_page(struct supplemental_page_table *supt, uint32_t *pagedir, 
         return true;
     }
 
-    void* frame = frame_allocate (PAL_USER, page);
+    void* frame_kpage = frame_allocate (PAL_USER, upage);
 
-    if (frame == NULL) {
+    if (frame_kpage == NULL) {
         // Failed to allocate new frame
         return false;
     }
@@ -274,7 +274,7 @@ bool supt_pt_load_page(struct supplemental_page_table *supt, uint32_t *pagedir, 
     bool writable = true;
     switch (spte->status) {
         case ALL_ZERO:
-            memset (frame, 0, PGSIZE);
+            memset (frame_kpage, 0, PGSIZE);
             break;
 
         case ON_FRAME:
@@ -283,17 +283,17 @@ bool supt_pt_load_page(struct supplemental_page_table *supt, uint32_t *pagedir, 
 
         case ON_SWAP:
             // Data is on swap, load the data back from swap
-            swap_in (spte->swap_index, frame);
+            swap_in (spte->swap_index, frame_kpage);
             break;
         
         case FROM_FILESYS:
             // Data was loaded from file, now we just need to 
             // reload it from file.
-            if (supt_pt_load_page_from_filesys (spte, frame) == false) {
+            if (supt_pt_load_page_from_filesys (spte, frame_kpage) == false) {
 #ifdef MY_DEBUG
                 printf("[DEBUG][supt_pt_load_page] failed to load page 0x%x from filesys\n", (unsigned int) frame);
 #endif
-                frame_free (frame);
+                frame_free (frame_kpage);
                 return false;
             }
 
@@ -305,23 +305,23 @@ bool supt_pt_load_page(struct supplemental_page_table *supt, uint32_t *pagedir, 
     }
 
     // Point the page table entry for the faulting virtual address to physical address
-    if (!pagedir_set_page (pagedir, page, frame, writable)) {
+    if (!pagedir_set_page (pagedir, upage, frame_kpage, writable)) {
         // Didn't find page in page table
 #ifdef MY_DEBUG
         printf("[DEBUG][supt_pt_load_page] failed to set page 0x%x in page dir, writable=%d\n", (unsigned int) frame, writable);
 #endif
-        frame_free (frame);
+        frame_free (frame_kpage);
         return false;
     }
 
     // Save physical address to supplemental page table and update its status
-    spte->kpage = frame;
+    spte->kpage = frame_kpage;
     spte->status = ON_FRAME;
 
-    pagedir_set_dirty (pagedir, frame, false);
+    pagedir_set_dirty (pagedir, frame_kpage, false);
 
     // Unpin frame
-    frame_unpin (frame);
+    frame_unpin (frame_kpage);
 
     return true;
 }

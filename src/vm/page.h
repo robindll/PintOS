@@ -59,33 +59,33 @@ struct supplemental_page_table* supt_pt_create (void);
 void supt_pt_destroy (struct supplemental_page_table *);
 
 // Lookup and return supplemental page table entry for given page
-struct supplemental_page_table_entry* supt_pt_lookup (struct supplemental_page_table *supt, void *page);
+struct supplemental_page_table_entry* supt_pt_lookup (struct supplemental_page_table *supt, void *upage);
 
 // Create supplemental page table entry for given page 
-bool supt_pt_install_frame (struct supplemental_page_table *supt, void *page, void *frame);
+bool supt_pt_install_frame (struct supplemental_page_table *supt, void *upage, void *kpage);
 
 // Create supplemental page table entry for a new page specified by the starting address "page"
-bool supt_pt_install_filesys (struct supplemental_page_table *supt, void *page, struct file * file, off_t offset, uint32_t read_bytes, uint32_t zero_bytes, bool writable);
+bool supt_pt_install_filesys (struct supplemental_page_table *supt, void *upage, struct file * file, off_t offset, uint32_t read_bytes, uint32_t zero_bytes, bool writable);
 
 // Create supplemental page table entry for a new zero-ed page.
-bool supt_pt_install_zeropage (struct supplemental_page_table *supt, void *page);
+bool supt_pt_install_zeropage (struct supplemental_page_table *supt, void *upage);
 
 // Mark a page is swapped out to given swap index
-bool supt_pt_set_swap (struct supplemental_page_table *supt, void *page, uint32_t swap_index);
+bool supt_pt_set_swap (struct supplemental_page_table *supt, void *upage, uint32_t swap_index);
 
 // Return whether supplemental page table has entry for given page
-bool supt_pt_has_entry (struct supplemental_page_table *supt, void *page);
+bool supt_pt_has_entry (struct supplemental_page_table *supt, void *upage);
 
 // Set a page's dirty bit
-bool supt_pt_set_dirty (struct supplemental_page_table *supt, void *page, bool);
+bool supt_pt_set_dirty (struct supplemental_page_table *supt, void *upage, bool);
 
 // Load page back to frame from swap
-bool supt_pt_load_page(struct supplemental_page_table *supt, uint32_t *pagedir, void *page);
+bool supt_pt_load_page(struct supplemental_page_table *supt, uint32_t *pagedir, void *upage);
 
 // Pin given page, prevent the frame associated with given page from swapping out.
-void supt_pt_pin_page(struct supplemental_page_table *supt, void *page);
+void supt_pt_pin_page(struct supplemental_page_table *supt, void *upage);
 
 // Unpin given page.
-void supt_pt_unpin_page(struct supplemental_page_table *supt, void *page);
+void supt_pt_unpin_page(struct supplemental_page_table *supt, void *upage);
 
 #endif
